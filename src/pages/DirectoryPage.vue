@@ -18,7 +18,7 @@
 
     <q-table
       title="Directorio Corporativo"
-      :rows="rows"
+      :rows="displayRows"
       :columns="columns"
       row-key="id"
       :loading="loading"
@@ -32,6 +32,12 @@
             <img :src="props.row.image" />
           </q-avatar>
         </q-td>
+      </template>
+
+      <template v-slot:no-data>
+        <div class="q-pa-md text-center text-grey">
+          No se encontraron usuarios con los filtros seleccionados o la búsqueda.
+        </div>
       </template>
 
       <template v-slot:body-cell-actions="props">
@@ -73,6 +79,8 @@ interface UsersResponse {
 const api = axios.create({ baseURL: 'https://dummyjson.com' });
 
 const rows = ref<User[]>([]);
+const displayRows = ref<User[]>([]);
+const allUsers = ref<User[]>([]);
 const loading = ref(false);
 const selectedUserId = ref<number | null>(null);
 const searchQuery = ref<string | null>('');
@@ -135,11 +143,25 @@ async function fetchUsers(limit: number, skip: number) {
       ...u,
       fullName: `${u.firstName} ${u.lastName}`,
     }));
+
+    displayRows.value = rows.value;
     pagination.value.rowsNumber = data.total;
   } catch (error) {
     console.error(error);
   } finally {
     loading.value = false;
+  }
+}
+
+async function fetchAllUsers() {
+  try {
+    const { data } = await api.get<UsersResponse>('/users', { params: { limit: 200 } });
+    allUsers.value = data.users.map((u) => ({
+      ...u,
+      fullName: `${u.firstName} ${u.lastName}`,
+    }));
+  } catch (e) {
+    console.error(e);
   }
 }
 
@@ -169,5 +191,6 @@ function verDetalle(id: number) {
 
 onMounted(() => {
   onRequest({ pagination: pagination.value });
+  void fetchAllUsers();
 });
 </script>
