@@ -1,8 +1,41 @@
 <template>
   <q-page class="q-pa-md">
+    <q-card class="q-mb-md">
+      <q-card-section>
+        <div class="text-subtitle1 text-weight-medium">Filtros</div>
+        <div class="row q-col-gutter-sm q-mt-sm">
+          <div class="col-12 col-sm-6 col-md-2">
+            <q-select
+              v-model="filterGender"
+              :options="genderOptions"
+              label="Género"
+              clearable
+              dense
+              outlined
+            />
+          </div>
+          <div class="col-6 col-sm-3 col-md-2">
+            <q-input v-model.number="filterAgeMin" label="Edad min" type="number" dense outlined />
+          </div>
+          <div class="col-6 col-sm-3 col-md-2">
+            <q-input v-model.number="filterAgeMax" label="Edad max" type="number" dense outlined />
+          </div>
+          <div class="col-12 col-sm-6 col-md-2">
+            <q-input v-model="filterCompany" label="Empresa" dense outlined />
+          </div>
+          <div class="col-12 col-sm-6 col-md-2">
+            <q-input v-model="filterCity" label="Ciudad" dense outlined />
+          </div>
+          <div class="col-12 col-sm-6 col-md-2">
+            <q-input v-model="filterCountry" label="País" dense outlined />
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+
     <q-table
       title="Directorio Corporativo"
-      :rows="rows"
+      :rows="displayRows"
       :columns="columns"
       row-key="id"
       :loading="loading"
@@ -15,6 +48,12 @@
             <img :src="props.row.image" />
           </q-avatar>
         </q-td>
+      </template>
+
+      <template v-slot:no-data>
+        <div class="q-pa-md text-center text-grey">
+          No se encontraron usuarios con los filtros seleccionados.
+        </div>
       </template>
 
       <template v-slot:body-cell-actions="props">
@@ -30,13 +69,12 @@
       </template>
     </q-table>
 
-    <!-- TU COMPONENTE PUNTO 3 -->
     <UserDetail :userId="selectedUserId" @update:userId="selectedUserId = $event" />
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import axios from 'axios'
 import UserDetail from 'src/components/UserDetail.vue'
 
@@ -62,9 +100,19 @@ interface UsersResponse {
 
 const api = axios.create({ baseURL: 'https://dummyjson.com' })
 
+const allUsers = ref<User[]>([])
 const rows = ref<User[]>([])
 const loading = ref(false)
 const selectedUserId = ref<number | null>(null)
+
+const filterGender = ref<string | null>(null)
+const filterAgeMin = ref<number | null>(null)
+const filterAgeMax = ref<number | null>(null)
+const filterCompany = ref('')
+const filterCity = ref('')
+const filterCountry = ref('')
+
+const genderOptions = ['male', 'female']
 
 const pagination = ref({
   page: 1,
@@ -85,6 +133,34 @@ const columns = [
   { name: 'actions', label: 'Acción', field: 'actions', align: 'center' as const },
 ]
 
+const hasFilters = computed(() =>
+  filterGender.value !== null ||
+  filterAgeMin.value !== null ||
+  filterAgeMax.value !== null ||
+  filterCompany.value !== '' ||
+  filterCity.value !== '' ||
+  filterCountry.value !== ''
+)
+
+const displayRows = computed(() => {
+  if (!hasFilters.value) return rows.value
+  return allUsers.value.filter((user) => {
+    if (filterGender.value && user.gender !== filterGender.value) return false
+    if (filterAgeMin.value !== null && filterAgeMin.value !== undefined && user.age < filterAgeMin.value) return false
+    if (filterAgeMax.value !== null && filterAgeMax.value !== undefined && user.age > filterAgeMax.value) return false
+    if (filterCompany.value && !user.company?.name?.toLowerCase().includes(filterCompany.value.toLowerCase())) return false
+    if (filterCity.value && !user.address?.city?.toLowerCase().includes(filterCity.value.toLowerCase())) return false
+    if (filterCountry.value && !user.address?.country?.toLowerCase().includes(filterCountry.value.toLowerCase())) return false
+    return true
+  })
+})
+
+watch(displayRows, (val) => {
+  if (hasFilters.value) {
+    pagination.value.rowsNumber = val.length
+  }
+})
+
 async function fetchUsers(limit: number, skip: number) {
   loading.value = true
   try {
@@ -99,6 +175,18 @@ async function fetchUsers(limit: number, skip: number) {
   }
 }
 
+async function fetchAllUsers() {
+  try {
+    const { data } = await api.get<UsersResponse>('/users', { params: { limit: 200 } })
+    allUsers.value = data.users.map((u) => ({
+      ...u,
+      fullName: `${u.firstName} ${u.lastName}`,
+    }))
+  } catch (e) {
+    console.error(e)
+  }
+}
+
 interface RequestProp {
   pagination: {
     page: number
@@ -107,6 +195,7 @@ interface RequestProp {
 }
 
 function onRequest(requestProp: RequestProp) {
+  if (hasFilters.value) return
   const { page, rowsPerPage } = requestProp.pagination
   const skip = (page - 1) * rowsPerPage
   pagination.value.page = page
@@ -119,6 +208,7 @@ function verDetalle(id: number) {
 }
 
 onMounted(() => {
+  void fetchAllUsers()
   onRequest({ pagination: pagination.value })
 })
 </script>
