@@ -1,19 +1,24 @@
 <template>
   <q-page class="q-pa-md">
+
     <div class="q-mb-md">
       <q-input
         v-model="searchQuery"
         outlined
         dense
-        placeholder="Buscar por nombre o apellido..."
-        debounce="500"
         clearable
+        debounce="500"
+        placeholder="Buscar por nombre o apellido..."
         :loading="loading"
       >
-        <template v-slot:append>
+        <template #append>
           <q-icon name="search" />
         </template>
       </q-input>
+    </div>
+
+    <div class="text-grey text-caption q-mb-sm">
+      Total de resultados: {{ pagination.rowsNumber }}
     </div>
 
     <q-table
@@ -22,81 +27,134 @@
       :columns="columns"
       row-key="id"
       :loading="loading"
+      loading-label="Consultando usuarios..."
+      no-data-label="No se encontraron coincidencias."
       v-model:pagination="pagination"
       @request="onRequest"
-      no-data-label="No se encontraron coincidencias con la búsqueda."
     >
-      <template v-slot:body-cell-photo="props">
+
+      <template #body-cell-photo="props">
         <q-td :props="props">
           <q-avatar size="40px">
-            <img :src="props.row.image" />
+            <img :src="props.row.image">
           </q-avatar>
         </q-td>
       </template>
 
-      <template v-slot:no-data>
+      <template #body-cell-actions="props">
+        <q-td :props="props">
+          <q-btn
+            dense
+            flat
+            round
+            icon="visibility"
+            @click="verDetalle(props.row.id)"
+          >
+            <q-tooltip>
+              Ver información del usuario
+            </q-tooltip>
+          </q-btn>
+        </q-td>
+      </template>
+
+      <template #no-data>
         <div class="q-pa-md text-center text-grey">
-          No se encontraron usuarios con los filtros seleccionados o la búsqueda.
+          No se encontraron usuarios con la búsqueda realizada.
         </div>
       </template>
 
-      <template v-slot:body-cell-actions="props">
-        <q-td :props="props">
-          <q-btn dense round flat icon="visibility" @click="verDetalle(props.row.id)" />
-        </q-td>
-      </template>
     </q-table>
 
-    <UserDetail :userId="selectedUserId" @update:userId="selectedUserId = $event" />
+    <UserDetail
+      :userId="selectedUserId"
+      @update:userId="selectedUserId = $event"
+    />
+
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import axios from 'axios';
-import UserDetail from 'src/components/UserDetail.vue';
+import { ref, watch, onMounted } from 'vue'
+import axios from 'axios'
+import UserDetail from 'src/components/UserDetail.vue'
 
 interface User {
-  id: number;
-  firstName: string;
-  lastName: string;
-  fullName?: string;
-  age: number;
-  gender: string;
-  email: string;
-  image: string;
-  company?: { name: string; title: string };
-  address?: { city: string; country: string };
+  id: number
+  firstName: string
+  lastName: string
+  fullName?: string
+  age: number
+  gender: string
+  email: string
+  image: string
+  company?: {
+    name: string
+    title: string
+  }
+  address?: {
+    city: string
+    country: string
+  }
 }
 
 interface UsersResponse {
-  users: User[];
-  total: number;
-  skip: number;
-  limit: number;
+  users: User[]
+  total: number
+  skip: number
+  limit: number
 }
 
-const api = axios.create({ baseURL: 'https://dummyjson.com' });
+const api = axios.create({
+  baseURL: 'https://dummyjson.com',
+})
 
-const rows = ref<User[]>([]);
-const displayRows = ref<User[]>([]);
-const allUsers = ref<User[]>([]);
-const loading = ref(false);
-const selectedUserId = ref<number | null>(null);
-const searchQuery = ref<string | null>('');
+const rows = ref<User[]>([])
+const displayRows = ref<User[]>([])
+const allUsers = ref<User[]>([])
+
+const loading = ref(false)
+
+const selectedUserId = ref<number | null>(null)
+
+const searchQuery = ref('')
 
 const pagination = ref({
   page: 1,
   rowsPerPage: 10,
   rowsNumber: 0,
-});
+})
 
 const columns = [
-  { name: 'photo', label: 'Foto', field: 'image', align: 'center' as const },
-  { name: 'fullName', label: 'Nombre Completo', field: 'fullName', align: 'left' as const },
-  { name: 'age', label: 'Edad', field: 'age', align: 'center' as const },
-  { name: 'gender', label: 'Género', field: 'gender', align: 'center' as const },
-  { name: 'email', label: 'Correo', field: 'email', align: 'left' as const },
+  {
+    name: 'photo',
+    label: 'Foto',
+    field: 'image',
+    align: 'center' as const,
+  },
+  {
+    name: 'fullName',
+    label: 'Nombre Completo',
+    field: 'fullName',
+    align: 'left' as const,
+  },
+  {
+    name: 'age',
+    label: 'Edad',
+    field: 'age',
+    align: 'center' as const,
+  },
+  {
+    name: 'gender',
+    label: 'Género',
+    field: 'gender',
+    align: 'center' as const,
+  },
+  {
+    name: 'email',
+    label: 'Correo',
+    field: 'email',
+    align: 'left' as const,
+  },
   {
     name: 'company',
     label: 'Empresa',
@@ -121,76 +179,149 @@ const columns = [
     field: (row: User) => row.address?.country,
     align: 'left' as const,
   },
-  { name: 'actions', label: 'Acción', field: 'actions', align: 'center' as const },
-];
+  {
+    name: 'actions',
+    label: 'Acción',
+    field: 'actions',
+    align: 'center' as const,
+  },
+]
+
+function prepareUsers(users: User[]) {
+  return users.map(user => ({
+    ...user,
+    fullName: [user.firstName, user.lastName]
+      .filter(Boolean)
+      .join(' '),
+  }))
+}
 
 async function fetchUsers(limit: number, skip: number) {
-  loading.value = true;
+  loading.value = true
+
   try {
-    const query = searchQuery.value || '';
-    const isSearching = query.trim() !== '';
 
-    const endpoint = isSearching ? '/users/search' : '/users';
-    const params: { limit: number; skip: number; q?: string } = { limit, skip };
+    const text = searchQuery.value.trim()
 
-    if (isSearching) {
-      params.q = query.trim();
+    const endpoint =
+      text.length > 0
+        ? '/users/search'
+        : '/users'
+
+    const params: {
+      limit: number
+      skip: number
+      q?: string
+    } = {
+      limit,
+      skip,
     }
 
-    const { data } = await api.get<UsersResponse>(endpoint, { params });
+    if (text.length > 0) {
+      params.q = text
+    }
 
-    rows.value = data.users.map((u) => ({
-      ...u,
-      fullName: `${u.firstName} ${u.lastName}`,
-    }));
+    const { data } = await api.get<UsersResponse>(
+      endpoint,
+      { params }
+    )
 
-    displayRows.value = rows.value;
-    pagination.value.rowsNumber = data.total;
+    rows.value = prepareUsers(data.users)
+    displayRows.value = rows.value
+
+    pagination.value.rowsNumber = data.total
+
   } catch (error) {
-    console.error(error);
+
+    console.error(error)
+
   } finally {
-    loading.value = false;
+
+    loading.value = false
+
   }
 }
 
 async function fetchAllUsers() {
+
   try {
-    const { data } = await api.get<UsersResponse>('/users', { params: { limit: 200 } });
-    allUsers.value = data.users.map((u) => ({
-      ...u,
-      fullName: `${u.firstName} ${u.lastName}`,
-    }));
-  } catch (e) {
-    console.error(e);
+
+    const { data } = await api.get<UsersResponse>(
+      '/users',
+      {
+        params: {
+          limit: 200,
+        },
+      }
+    )
+
+    allUsers.value = prepareUsers(data.users)
+
+  } catch (error) {
+
+    console.error(error)
+
   }
 }
 
 interface RequestProp {
+
   pagination: {
-    page: number;
-    rowsPerPage: number;
-  };
+
+    page: number
+
+    rowsPerPage: number
+
+  }
+
 }
 
 function onRequest(requestProp: RequestProp) {
-  const { page, rowsPerPage } = requestProp.pagination;
-  const skip = (page - 1) * rowsPerPage;
-  pagination.value.page = page;
-  pagination.value.rowsPerPage = rowsPerPage;
-  void fetchUsers(rowsPerPage, skip);
+
+  const { page, rowsPerPage } = requestProp.pagination
+
+  pagination.value.page = page
+
+  pagination.value.rowsPerPage = rowsPerPage
+
+  const skip =
+    (page - 1) * rowsPerPage
+
+  void fetchUsers(rowsPerPage, skip)
+
 }
 
-watch(searchQuery, () => {
-  pagination.value.page = 1;
-  onRequest({ pagination: pagination.value });
-});
+watch(searchQuery, (newValue, oldValue) => {
+
+  const current = newValue.trim()
+
+  const previous = oldValue.trim()
+
+  if (current === previous) {
+    return
+  }
+
+  pagination.value.page = 1
+
+  onRequest({
+    pagination: pagination.value,
+  })
+
+})
 
 function verDetalle(id: number) {
-  selectedUserId.value = id;
+
+  selectedUserId.value = id
+
 }
 
 onMounted(() => {
-  onRequest({ pagination: pagination.value });
-  void fetchAllUsers();
-});
+
+  onRequest({
+    pagination: pagination.value,
+  })
+
+  void fetchAllUsers()
+
+})
 </script>
