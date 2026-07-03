@@ -31,6 +31,7 @@
           <q-tab name="banco" label="Banco" />
           <q-tab name="fisica" label="Física" />
           <q-tab name="crypto" label="Crypto" />
+          <q-tab name="compras" label="Compras" />
         </q-tabs>
 
         <q-tab-panels v-model="tab" animated>
@@ -92,6 +93,44 @@
               <q-item><q-item-section><q-item-label caption>Red</q-item-label><q-item-label>{{ user.crypto?.network }}</q-item-label></q-item-section></q-item>
             </q-list>
           </q-tab-panel>
+
+          <!-- COMPRAS -->
+          <q-tab-panel name="compras">
+            <div v-if="loadingCarts" class="flex flex-center q-pa-xl">
+              <q-spinner color="primary" size="50px" />
+            </div>
+
+            <div v-else-if="carts.length === 0" class="text-center text-grey q-pa-md">
+              Este usuario no registra compras.
+            </div>
+
+            <div v-else>
+              <q-card v-for="cart in carts" :key="cart.id" flat bordered class="q-mb-md">
+                <q-card-section class="bg-grey-3">
+                  <div class="text-subtitle1 text-weight-medium">Carrito #{{ cart.id }}</div>
+                </q-card-section>
+
+                <q-table
+                  :rows="cart.products"
+                  :columns="cartColumns"
+                  row-key="id"
+                  flat
+                  hide-bottom
+                  :pagination="{ rowsPerPage: 0 }"
+                />
+
+                <q-card-section class="text-right text-weight-bold">
+                  Total del carrito: ${{ cart.total.toFixed(2) }}
+                </q-card-section>
+              </q-card>
+
+              <q-separator class="q-my-md" />
+
+              <div class="text-right text-h6">
+                Total General: ${{ totalGeneral.toFixed(2) }}
+              </div>
+            </div>
+          </q-tab-panel>
         </q-tab-panels>
       </q-card-section>
     </q-card>
@@ -99,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import axios from 'axios'
 
 interface User {
@@ -123,6 +162,34 @@ interface User {
   crypto?: { coin: string; wallet: string; network: string }
 }
 
+interface CartProduct {
+  id: number
+  title: string
+  price: number
+  quantity: number
+  total: number
+  discountPercentage: number
+  discountedTotal: number
+  thumbnail: string
+}
+
+interface Cart {
+  id: number
+  products: CartProduct[]
+  total: number
+  discountedTotal: number
+  userId: number
+  totalProducts: number
+  totalQuantity: number
+}
+
+interface CartsResponse {
+  carts: Cart[]
+  total: number
+  skip: number
+  limit: number
+}
+
 const props = defineProps<{ userId: number | null }>()
 const emit = defineEmits(['update:userId'])
 
@@ -130,6 +197,45 @@ const show = ref(false)
 const loading = ref(false)
 const user = ref<User>({} as User)
 const tab = ref('personal')
+
+const carts = ref<Cart[]>([])
+const loadingCarts = ref(false)
+
+const totalGeneral = computed(() =>
+  carts.value.reduce((sum, cart) => sum + cart.total, 0)
+)
+
+const cartColumns = [
+  { name: 'title', label: 'Producto', field: 'title', align: 'left' as const },
+  { name: 'quantity', label: 'Cantidad', field: 'quantity', align: 'center' as const },
+  {
+    name: 'price',
+    label: 'Precio Unitario',
+    field: 'price',
+    align: 'right' as const,
+    format: (val: number) => `$${val.toFixed(2)}`,
+  },
+  {
+    name: 'subtotal',
+    label: 'Subtotal',
+    field: (row: CartProduct) => row.price * row.quantity,
+    align: 'right' as const,
+    format: (val: number) => `$${val.toFixed(2)}`,
+  },
+]
+
+async function fetchCarts(id: number) {
+  loadingCarts.value = true
+  try {
+    const { data } = await axios.get<CartsResponse>(`https://dummyjson.com/users/${id}/carts`)
+    carts.value = data.carts
+  } catch (e) {
+    console.error(e)
+    carts.value = []
+  } finally {
+    loadingCarts.value = false
+  }
+}
 
 watch(() => props.userId, async (id) => {
   if (id) {
@@ -143,6 +249,7 @@ watch(() => props.userId, async (id) => {
     } finally {
       loading.value = false
     }
+    void fetchCarts(id)
   }
 })
 
