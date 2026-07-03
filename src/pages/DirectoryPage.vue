@@ -1,6 +1,7 @@
 <template>
   <q-page class="q-pa-md">
 
+    <!-- BUSCADOR -->
     <div class="q-mb-md">
       <q-input
         v-model="searchQuery"
@@ -8,7 +9,7 @@
         dense
         clearable
         debounce="500"
-        placeholder="Buscar por nombre o apellido..."
+        placeholder="Buscar por nombre..."
         :loading="loading"
       >
         <template #append>
@@ -17,54 +18,93 @@
       </q-input>
     </div>
 
-    <div class="text-grey text-caption q-mb-sm">
-      Total de resultados: {{ pagination.rowsNumber }}
+    <!-- FILTROS -->
+    <div class="row q-col-gutter-md q-mb-md">
+
+      <div class="col-12 col-md-2">
+        <q-select
+          v-model="genderFilter"
+          :options="genderOptions"
+          label="Género"
+          outlined
+          clearable
+        />
+      </div>
+
+      <div class="col-12 col-md-2">
+        <q-input v-model.number="minAge" type="number" label="Edad mín" outlined />
+      </div>
+
+      <div class="col-12 col-md-2">
+        <q-input v-model.number="maxAge" type="number" label="Edad máx" outlined />
+      </div>
+
+      <div class="col-12 col-md-2">
+        <q-select
+          v-model="companyFilter"
+          :options="companyOptions"
+          label="Empresa"
+          outlined
+          clearable
+        />
+      </div>
+
+      <div class="col-12 col-md-2">
+        <q-select
+          v-model="cityFilter"
+          :options="cityOptions"
+          label="Ciudad"
+          outlined
+          clearable
+        />
+      </div>
+
+      <div class="col-12 col-md-2">
+        <q-select
+          v-model="countryFilter"
+          :options="countryOptions"
+          label="País"
+          outlined
+          clearable
+        />
+      </div>
+
     </div>
 
+    <!-- TABLA (CORREGIDA SEGÚN PDF) -->
     <q-table
       title="Directorio Corporativo"
       :rows="displayRows"
       :columns="columns"
       row-key="id"
       :loading="loading"
-      loading-label="Consultando usuarios..."
-      no-data-label="No se encontraron coincidencias."
-      v-model:pagination="pagination"
-      @request="onRequest"
     >
 
+      <!-- FOTO -->
       <template #body-cell-photo="props">
         <q-td :props="props">
           <q-avatar size="40px">
-            <img :src="props.row.image">
+            <img :src="props.row.image" />
           </q-avatar>
         </q-td>
       </template>
 
+      <!-- BOTÓN OJO (DETALLE) -->
       <template #body-cell-actions="props">
         <q-td :props="props">
           <q-btn
-            dense
+            icon="visibility"
             flat
             round
-            icon="visibility"
+            color="primary"
             @click="verDetalle(props.row.id)"
-          >
-            <q-tooltip>
-              Ver información del usuario
-            </q-tooltip>
-          </q-btn>
+          />
         </q-td>
-      </template>
-
-      <template #no-data>
-        <div class="q-pa-md text-center text-grey">
-          No se encontraron usuarios con la búsqueda realizada.
-        </div>
       </template>
 
     </q-table>
 
+    <!-- DETALLE -->
     <UserDetail
       :userId="selectedUserId"
       @update:userId="selectedUserId = $event"
@@ -87,241 +127,169 @@ interface User {
   gender: string
   email: string
   image: string
-  company?: {
-    name: string
-    title: string
-  }
-  address?: {
-    city: string
-    country: string
-  }
+
+  // IMPORTANTE PARA PDF
+  company?: { name: string; title: string }
+  address?: { city: string; country: string }
 }
 
-interface UsersResponse {
-  users: User[]
-  total: number
-  skip: number
-  limit: number
-}
+const api = axios.create({ baseURL: 'https://dummyjson.com' })
 
-const api = axios.create({
-  baseURL: 'https://dummyjson.com',
-})
-
-const rows = ref<User[]>([])
-const displayRows = ref<User[]>([])
 const allUsers = ref<User[]>([])
-
+const displayRows = ref<User[]>([])
 const loading = ref(false)
 
+const searchQuery = ref('')
 const selectedUserId = ref<number | null>(null)
 
-const searchQuery = ref('')
+const genderFilter = ref<string | null>(null)
+const companyFilter = ref<string | null>(null)
+const cityFilter = ref<string | null>(null)
+const countryFilter = ref<string | null>(null)
 
-const pagination = ref({
-  page: 1,
-  rowsPerPage: 10,
-  rowsNumber: 0,
-})
+const minAge = ref<number | null>(null)
+const maxAge = ref<number | null>(null)
 
+const genderOptions = ['male', 'female']
+const companyOptions = ref<string[]>([])
+const cityOptions = ref<string[]>([])
+const countryOptions = ref<string[]>([])
+
+/* =========================
+   COLUMNAS (CORREGIDO PDF)
+========================= */
 const columns = [
-  {
-    name: 'photo',
-    label: 'Foto',
-    field: 'image',
-    align: 'center' as const,
-  },
-  {
-    name: 'fullName',
-    label: 'Nombre Completo',
-    field: 'fullName',
-    align: 'left' as const,
-  },
-  {
-    name: 'age',
-    label: 'Edad',
-    field: 'age',
-    align: 'center' as const,
-  },
-  {
-    name: 'gender',
-    label: 'Género',
-    field: 'gender',
-    align: 'center' as const,
-  },
-  {
-    name: 'email',
-    label: 'Correo',
-    field: 'email',
-    align: 'left' as const,
-  },
+  { name: 'photo', label: 'Foto', field: 'image', align: 'center' as const },
+  { name: 'fullName', label: 'Nombre', field: 'fullName', align: 'left' as const },
+  { name: 'age', label: 'Edad', field: 'age', align: 'center' as const },
+  { name: 'gender', label: 'Género', field: 'gender', align: 'center' as const },
+  { name: 'email', label: 'Correo', field: 'email', align: 'left' as const },
+
+  // 🔥 LO QUE TE FALTABA DEL PDF
   {
     name: 'company',
     label: 'Empresa',
-    field: (row: User) => row.company?.name,
-    align: 'left' as const,
+    field: (r: User) => r.company?.name,
+    align: 'left' as const
   },
   {
     name: 'position',
     label: 'Cargo',
-    field: (row: User) => row.company?.title,
-    align: 'left' as const,
+    field: (r: User) => r.company?.title,
+    align: 'left' as const
   },
   {
     name: 'city',
     label: 'Ciudad',
-    field: (row: User) => row.address?.city,
-    align: 'left' as const,
+    field: (r: User) => r.address?.city,
+    align: 'left' as const
   },
   {
     name: 'country',
     label: 'País',
-    field: (row: User) => row.address?.country,
-    align: 'left' as const,
+    field: (r: User) => r.address?.country,
+    align: 'left' as const
   },
-  {
-    name: 'actions',
-    label: 'Acción',
-    field: 'actions',
-    align: 'center' as const,
-  },
+
+  { name: 'actions', label: 'Acción', field: 'actions' }
 ]
 
-function prepareUsers(users: User[]) {
-  return users.map(user => ({
-    ...user,
-    fullName: [user.firstName, user.lastName]
-      .filter(Boolean)
-      .join(' '),
+/* =========================
+   PREPARAR DATOS
+========================= */
+function prepare(users: User[]) {
+  return users.map(u => ({
+    ...u,
+    fullName: `${u.firstName} ${u.lastName}`
   }))
 }
 
-async function fetchUsers(limit: number, skip: number) {
+/* =========================
+   CARGA DE DATOS
+========================= */
+async function fetchAllUsers() {
   loading.value = true
 
   try {
+    const { data } = await api.get('/users?limit=200')
 
-    const text = searchQuery.value.trim()
+    allUsers.value = prepare(data.users)
+    displayRows.value = allUsers.value
 
-    const endpoint =
-      text.length > 0
-        ? '/users/search'
-        : '/users'
-
-    const params: {
-      limit: number
-      skip: number
-      q?: string
-    } = {
-      limit,
-      skip,
-    }
-
-    if (text.length > 0) {
-      params.q = text
-    }
-
-    const { data } = await api.get<UsersResponse>(
-      endpoint,
-      { params }
-    )
-
-    rows.value = prepareUsers(data.users)
-    displayRows.value = rows.value
-
-    pagination.value.rowsNumber = data.total
-
-  } catch (error) {
-
-    console.error(error)
+    companyOptions.value = [...new Set(allUsers.value.map(u => u.company?.name).filter(Boolean))] as string[]
+    cityOptions.value = [...new Set(allUsers.value.map(u => u.address?.city).filter(Boolean))] as string[]
+    countryOptions.value = [...new Set(allUsers.value.map(u => u.address?.country).filter(Boolean))] as string[]
 
   } finally {
-
     loading.value = false
-
   }
 }
 
-async function fetchAllUsers() {
+/* =========================
+   FILTROS (PREGUNTA 7)
+========================= */
+function applyFilters() {
+  let result = [...allUsers.value]
 
-  try {
+  const text = searchQuery.value.toLowerCase()
 
-    const { data } = await api.get<UsersResponse>(
-      '/users',
-      {
-        params: {
-          limit: 200,
-        },
-      }
+  if (text) {
+    result = result.filter(u =>
+      (u.fullName ?? '').toLowerCase().includes(text)
     )
-
-    allUsers.value = prepareUsers(data.users)
-
-  } catch (error) {
-
-    console.error(error)
-
-  }
-}
-
-interface RequestProp {
-
-  pagination: {
-
-    page: number
-
-    rowsPerPage: number
-
   }
 
-}
-
-function onRequest(requestProp: RequestProp) {
-
-  const { page, rowsPerPage } = requestProp.pagination
-
-  pagination.value.page = page
-
-  pagination.value.rowsPerPage = rowsPerPage
-
-  const skip =
-    (page - 1) * rowsPerPage
-
-  void fetchUsers(rowsPerPage, skip)
-
-}
-
-watch(searchQuery, (newValue, oldValue) => {
-
-  const current = newValue.trim()
-
-  const previous = oldValue.trim()
-
-  if (current === previous) {
-    return
+  if (genderFilter.value) {
+    result = result.filter(u => u.gender === genderFilter.value)
   }
 
-  pagination.value.page = 1
+  if (companyFilter.value) {
+    result = result.filter(u => u.company?.name === companyFilter.value)
+  }
 
-  onRequest({
-    pagination: pagination.value,
-  })
+  if (cityFilter.value) {
+    result = result.filter(u => u.address?.city === cityFilter.value)
+  }
 
-})
+  if (countryFilter.value) {
+    result = result.filter(u => u.address?.country === countryFilter.value)
+  }
 
+  if (minAge.value != null) {
+    result = result.filter(u => u.age >= (minAge.value as number))
+  }
+
+  if (maxAge.value != null) {
+    result = result.filter(u => u.age <= (maxAge.value as number))
+  }
+
+  displayRows.value = result
+}
+
+/* =========================
+   REACTIVIDAD
+========================= */
+watch(
+  [
+    searchQuery,
+    genderFilter,
+    companyFilter,
+    cityFilter,
+    countryFilter,
+    minAge,
+    maxAge
+  ],
+  applyFilters
+)
+
+/* =========================
+   DETALLE
+========================= */
 function verDetalle(id: number) {
-
   selectedUserId.value = id
-
 }
 
 onMounted(() => {
-
-  onRequest({
-    pagination: pagination.value,
-  })
-
   void fetchAllUsers()
-
 })
 </script>
