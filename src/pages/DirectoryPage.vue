@@ -29,12 +29,16 @@
         </q-td>
       </template>
     </q-table>
+
+    <!-- TU COMPONENTE PUNTO 3 -->
+    <UserDetail :userId="selectedUserId" @update:userId="selectedUserId = $event" />
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import UserDetail from 'src/components/UserDetail.vue'
 
 interface User {
   id: number
@@ -60,6 +64,7 @@ const api = axios.create({ baseURL: 'https://dummyjson.com' })
 
 const rows = ref<User[]>([])
 const loading = ref(false)
+const selectedUserId = ref<number | null>(null)
 
 const pagination = ref({
   page: 1,
@@ -110,7 +115,7 @@ function onRequest(requestProp: RequestProp) {
 }
 
 function verDetalle(id: number) {
-  console.log('detalle de usuario', id)
+  selectedUserId.value = id
 }
 
 onMounted(() => {
